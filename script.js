@@ -1,4 +1,8 @@
 "use strict"
+const factor=1000
+let game;
+let canvas;
+let score=0
 const sprites={
     background:background,
     balloon:balloon,
@@ -9,20 +13,22 @@ const sprites={
     cannon_green:cannon_green,
     cannon_red:cannon_red,
     green_ball:green_ball,
+    green_can:green_can,
     red_ball:red_ball,
     red_can:red_can,
     scorebar:scorebar,
     game_over_click:game_over_click,
     game_over_tap:game_over_tap
 }
-const mouse={
-    position:new Vector()
+const win={
+zero:red_can,
+one:green_can,
+two:blue_can
 }
-window.addEventListener("mousemove",function(event)
-{
-    mouse.position={x:event.pageX,y:event.pageY}
-    
-})
+const mouse={
+    position_onmove:new Vector(),
+    position_onclick:new Vector()
+}
 function Background()
 {
     this.position=new Vector()
@@ -58,20 +64,112 @@ Canvas.prototype.clear=function()
 {
     this.context.clearRect(0,0,this.width,this.height)
 }
-function Ball()
+function Can(game,x,y)
 {
-this.curr_color=sprites.blue_ball
-this.position=new Vector()
-this.origin=new Vector()
-this.velocity=new Vector()
+this.game=game
+this.original_position={x:x,y:y}
+this.position=new Vector(x,y)
+this.origin=new Vector(0,0)
+this.velocity=new Vector(0,(Math.random() * 3 +10))
+this.curr_color=this.randomColor()
 this.rotation=0
+}
+Can.prototype.draw=function()
+{
+this.game.drawImage(this.curr_color,this.position,this.origin,this.rotation)
+}
+Can.prototype.update=function(delta)
+{
+this.velocity.y=this.randomVelocity()
+this.position.y+=this.velocity.y
+this.reset()
+}
+Can.prototype.randomVelocity=function()
+{
+    let value=Math.random() * 2 +3
+    return (Math.random() * 10 +10)/value
+}
+Can.prototype.randomColor=function()
+{
+    let value=Math.floor(Math.random() * 3)
+    if(value === 0)
+    {
+        return sprites.red_can
+    }
+    else if(value ===1)
+    {
+        return sprites.blue_can
+    }
+    else{
+        return sprites.green_can
+    }
+}
+Can.prototype.reset=function(x,y)
+{
+if(this.game.outsideGame(this))
+{
+    let x=this.original_position.x
+    let y=Math.random() * -100 + -50
+    this.curr_color=this.randomColor()
+    this.position=new Vector(x,y)
+}
+}
+function Ball(game)
+{
+this.game=game
+this.curr_color=sprites.red_ball
+this.position=new Vector(50,390)
+this.origin=new Vector(0,0)
+this.velocity=new Vector(0,0)
+this.shooting=false
+this.collision=false
 }
 Ball.prototype.draw=function()
 {
-    Game.prototype.drawImage(this.curr_color,this.position,this.origin,this.rotation)
+    this.game.drawImage(this.curr_color,this.position,this.origin,this.rotation)
 }
-function Cannon()
+Ball.prototype.update=function(deltatime)
 {
+   
+if(this.shooting){
+    this.velocity.x*=0.99
+    this.velocity.y+=6
+    this.position.x+=this.velocity.x * deltatime/factor
+    this.position.y+=this.velocity.y * deltatime/factor
+}
+else{
+    if(this.game.cannon.curr_color === sprites.cannon_red)
+    {
+        this.curr_color=sprites.red_ball
+    }
+    else if(this.game.cannon.curr_color === sprites.cannon_blue)
+    {
+        this.curr_color=sprites.blue_ball
+    }
+    else{
+        this.curr_color=sprites.green_ball
+    }
+}
+this.reset()
+
+}
+Ball.prototype.reset=function()
+{
+    if(this.collision)
+    {
+        this.position=new Vector(60,393)
+        this.shooting=false
+        this.collision=false
+    }
+    if(this.shooting && this.game.outsideGame(this))
+    {
+        this.position=new Vector(60,393)
+        this.shooting=false
+    }
+}
+function Cannon(game)
+{
+this.game=game
 this.position=new Vector(72,405)
 this.origin=new Vector(34,34)
 this.curr_color=sprites.cannon_red
@@ -80,19 +178,20 @@ this.rotation=0
 }
 Cannon.prototype.draw=function()
 {
-    game.drawImage(sprites.cannon_barrel,this.position,this.origin,this.rotation)
-    game.drawImage(this.curr_color,this.curr_position,{x:0,y:0},0)
+    this.game.drawImage(sprites.cannon_barrel,this.position,this.origin,this.rotation)
+    this.game.drawImage(this.curr_color,this.curr_position,{x:0,y:0},0)
 }
 Cannon.prototype.update=function()
 {
-    const opposite=mouse.position.x - this.position.x
-    const adjacent=mouse.position.y -this.position.y
+    const opposite=mouse.position_onmove.x - this.position.x
+    const adjacent=mouse.position_onmove.y -this.position.y
     this.rotation=Math.atan2(adjacent,opposite)
 }
 function Game()
 {
-this.ball=new Ball()
-this.cannon=new Cannon() 
+this.ball=new Ball(this)
+this.cannon=new Cannon(this) 
+this.canArr=[new Can(this,450,Math.random() * -100 + -100),new Can(this,580,Math.random() * -100 + -100),new Can(this,710,Math.random() * -100 + -100)]
 this.background=new Background()
 this.width=canvas.width
 this.height=canvas.height
@@ -108,11 +207,87 @@ seal(sprites)
 Game.prototype.draw=function()
 {
 this.background.draw()
+this.ball.draw()
 this.cannon.draw()
+this.canArr.forEach((can)=>
+{
+    can.draw()
+})
 }
-Game.prototype.update=function()
+Game.prototype.outsideGame=function(obj)
+{
+
+    if(obj.position.x > this.width || obj.position.x + obj.curr_color.width <0 )
+    {
+        return true
+    }
+    if(obj.position.y > this.height || obj.position.y + obj.curr_color.height < 0)
+    {
+        return true
+    }
+    return false
+}
+Game.prototype.check_win=function()
+{
+    this.canArr.forEach((can,index)=>{
+if(can.position.y + can.curr_color.height > this.height)
+{
+    if(index === 0 && can.curr_color===win.zero)
+    {
+    score++
+    }
+    else if(index === 1 && can.curr_color===win.one)
+    {
+    score++
+    }
+    else(index === 2 && can.curr_color===win.two)
+    {
+    score++
+    }
+}
+
+    })
+}
+Game.prototype.update=function(deltatime)
 {
 this.cannon.update()
+this.ball.update(deltatime)
+this.canArr.forEach((can)=>
+{
+    can.update()
+})
+this.collision()
+}
+Game.prototype.collision=function()
+{
+    if(this.ball.shooting)
+    {
+this.canArr.forEach((can)=>{
+    let y1=this.ball.position.y + this.ball.curr_color.height/2
+    let y2=can.position.y + can.curr_color.height/2
+    let x1=this.ball.position.x + this.ball.curr_color.width/2
+    let x2=can.position.x + can.curr_color.width/2
+    let dist=Math.sqrt(Math.pow((y1-y2),2) +(Math.pow((x1-x2),2)))
+    if(dist<(this.ball.curr_color.width/2 + can.curr_color.width/2))
+    {
+        let value=this.ball.curr_color
+if(value===sprites.green_ball)
+{
+    can.curr_color=sprites.green_can
+}
+else if(value===sprites.red_ball)
+{
+    can.curr_color=sprites.red_can
+}
+else{
+    can_curr_color=sprites.blue_can
+}
+this.ball.collision=true
+    }
+})
+    }
+    this.check_win()
+    console.log(score)
 }
 Game.prototype.drawImage=function(sprite,position,origin,rotation)
 {
@@ -122,8 +297,6 @@ canvas.context.rotate(rotation)
 canvas.context.drawImage(sprite,0,0,sprite.width,sprite.height,-origin.x,-origin.y,sprite.width,sprite.height)
 canvas.context.restore()
 }
-let game;
-let canvas;
 window.addEventListener("keydown",function(event)
 {
 let key=event.key.toLowerCase()
@@ -139,18 +312,37 @@ else{
 game.cannon.curr_color=sprites.cannon_blue
 }
 })
+window.addEventListener("mousemove",function(event)
+{
+    mouse.position_onmove={x:event.pageX,y:event.pageY}
+    
+})
+window.addEventListener("click",function(event)
+{
+if(!game.ball.shooting)
+{
+    mouse.position_onclick={x:event.pageX,y:event.pageY}
+    game.ball.velocity.x=(mouse.position_onclick.x-game.ball.position.x)
+    game.ball.velocity.y=(mouse.position_onclick.y -game.ball.position.y)
+    game.ball.shooting=true
+}
+})
 window.addEventListener("load",function()
 {
 canvas=new Canvas()
 game=new Game()
 animate(0)
 })
-function animate()
+let interval=0
+let deltatime=undefined
+function animate(timestamp)
 {
+deltatime=timestamp-interval
 requestAnimationFrame(animate)
 canvas.clear()
 game.start()
 game.draw()
-game.update()
+game.update(deltatime)
+interval=timestamp
 }
 
