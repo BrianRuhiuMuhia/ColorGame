@@ -20,6 +20,8 @@ const sprites={
     game_over_click:game_over_click,
     game_over_tap:game_over_tap
 }
+const sound=new Audio()
+sound.src="/assets/laser.wav"
 const win={
 zero:red_can,
 one:green_can,
@@ -81,7 +83,7 @@ this.game.drawImage(this.curr_color,this.position,this.origin,this.rotation)
 Can.prototype.update=function(delta)
 {
 this.velocity.y=this.randomVelocity()
-this.position.y+=this.velocity.y
+this.position.y+=this.velocity.y * 0.5
 this.reset()
 }
 Can.prototype.randomVelocity=function()
@@ -106,12 +108,13 @@ Can.prototype.randomColor=function()
 }
 Can.prototype.reset=function(x,y)
 {
-if(this.game.outsideGame(this))
+if(this.position.y>game.height)
 {
     let x=this.original_position.x
-    let y=Math.random() * -100 + -50
+    let y=this.original_position.y
     this.curr_color=this.randomColor()
     this.position=new Vector(x,y)
+    
 }
 }
 function Ball(game)
@@ -189,9 +192,10 @@ Cannon.prototype.update=function()
 }
 function Game()
 {
+let y=-sprites.blue_can.height
 this.ball=new Ball(this)
 this.cannon=new Cannon(this) 
-this.canArr=[new Can(this,450,Math.random() * -100 + -100),new Can(this,580,Math.random() * -100 + -100),new Can(this,710,Math.random() * -100 + -100)]
+this.canArr=[new Can(this,450,y),new Can(this,580,y),new Can(this,710,y)]
 this.background=new Background()
 this.width=canvas.width
 this.height=canvas.height
@@ -230,7 +234,8 @@ Game.prototype.outsideGame=function(obj)
 Game.prototype.check_win=function()
 {
     this.canArr.forEach((can,index)=>{
-if(can.position.y + can.curr_color.height > this.height)
+
+if(can.position.y + 1>= this.height)
 {
     if(index === 0 && can.curr_color===win.zero)
     {
@@ -245,8 +250,7 @@ if(can.position.y + can.curr_color.height > this.height)
     score++
     }
 }
-
-    })
+})
 }
 Game.prototype.update=function(deltatime)
 {
@@ -286,8 +290,7 @@ this.ball.collision=true
     }
 })
     }
-    this.check_win()
-    console.log(score)
+     this.check_win()
 }
 Game.prototype.drawImage=function(sprite,position,origin,rotation)
 {
@@ -324,6 +327,7 @@ if(!game.ball.shooting)
     mouse.position_onclick={x:event.pageX,y:event.pageY}
     game.ball.velocity.x=(mouse.position_onclick.x-game.ball.position.x)
     game.ball.velocity.y=(mouse.position_onclick.y -game.ball.position.y)
+    sound.play()
     game.ball.shooting=true
 }
 })
@@ -333,6 +337,11 @@ canvas=new Canvas()
 game=new Game()
 animate(0)
 })
+function displayText() {
+    canvas.context.fillStyle = "white";
+    canvas.context.fillText(`Score:${score}`, 0, 55);
+    canvas.context.font = "30px cursive";
+}
 let interval=0
 let deltatime=undefined
 function animate(timestamp)
@@ -343,6 +352,7 @@ canvas.clear()
 game.start()
 game.draw()
 game.update(deltatime)
+displayText()
 interval=timestamp
 }
 
